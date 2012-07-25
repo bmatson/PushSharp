@@ -49,7 +49,7 @@ namespace PushSharp.Android
 		{
 			if (response.ResponseStatus == MessageTransportResponseStatus.Ok)
 				this.Events.RaiseNotificationSent(response.Message);
-			else if (response.ResponseStatus == MessageTransportResponseStatus.InvalidRegistration)
+			else if (response.ResponseStatus == MessageTransportResponseStatus.InvalidRegistration || response.ResponseStatus == MessageTransportResponseStatus.NotRegistered)
 			{
 				//Device subscription is no good!
 				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidC2dm, response.Message.RegistrationId);

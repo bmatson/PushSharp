@@ -181,7 +181,10 @@ namespace PushSharp.Android
 						break;
 				}
 
+                if (result.ResponseStatus != MessageTransportResponseStatus.InvalidRegistration && result.ResponseStatus != MessageTransportResponseStatus.NotRegistered)
+                {
 				throw new MessageTransportException(wrErr, result);
+			}
 			}
 			else
 			{
