@@ -68,7 +68,6 @@ namespace PushSharp.Android
 				{
 					//Raise failure and device expired
 					this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidGcm, singleResultNotification.RegistrationIds[0]);
-					this.Events.RaiseNotificationSendFailure(singleResultNotification, new GcmMessageTransportException(r.ResponseStatus.ToString(), response));
 				}
 				else
 				{

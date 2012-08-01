@@ -82,7 +82,10 @@ namespace PushSharp.Apple
                         timestamp = timestamp.ToLocalTime();
                     }
 
-
+					//flag to allow feedback times in UTC or local, but default is local
+					if (!settings.FeedbackTimeIsUTC)
+						timestamp = timestamp.ToLocalTime();
+				
 					//Now copy out the device token
 					Array.Copy(buffer, 6, bDeviceToken, 0, 32);
 
