@@ -93,7 +93,7 @@ namespace PushSharp.Android
 		internal string GetJson()
 		{
 			var json = new JObject();
-			
+
 			if (!string.IsNullOrEmpty(this.CollapseKey))
 				json["collapse_key"] = this.CollapseKey;
 			

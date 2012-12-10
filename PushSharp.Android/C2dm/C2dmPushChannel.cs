@@ -4,18 +4,20 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using PushSharp.Common;
 
 namespace PushSharp.Android
 {
 	[Obsolete("Google has Deprecated C2DM, and you should now use GCM Instead.")]
-	public class AndroidPushChannel : PushChannelBase
+	public class C2dmPushChannel : PushChannelBase
 	{
-		AndroidPushChannelSettings androidSettings = null;
+		C2dmPushChannelSettings androidSettings = null;
 		string googleAuthToken = string.Empty;
 		C2dmMessageTransportAsync transport;
+		long waitCounter = 0;
 
-		public AndroidPushChannel(AndroidPushChannelSettings channelSettings, PushServiceSettings serviceSettings = null) : base(channelSettings, serviceSettings) 
+		public C2dmPushChannel(C2dmPushChannelSettings channelSettings, PushServiceSettings serviceSettings = null) : base(channelSettings, serviceSettings) 
 		{
 			androidSettings = channelSettings;
 
@@ -26,7 +28,7 @@ namespace PushSharp.Android
 			}
 			catch (GoogleLoginAuthorizationException glaex)
 			{
-				this.Events.RaiseChannelException(glaex);
+				this.Events.RaiseChannelException(glaex, PlatformType.AndroidC2dm);
 			}
 
 			transport = new C2dmMessageTransportAsync();
@@ -37,40 +39,69 @@ namespace PushSharp.Android
 
 			transport.MessageResponseReceived += new Action<C2dmMessageTransportResponse>(transport_MessageResponseReceived);
 
-			transport.UnhandledException += new Action<AndroidNotification, Exception>(transport_UnhandledException);
+			transport.UnhandledException += new Action<C2dmNotification, Exception>(transport_UnhandledException);
 		}
 
-		void transport_UnhandledException(AndroidNotification notification, Exception exception)
+        public override PlatformType PlatformType
+        {
+            get { return PlatformType.AndroidC2dm; }
+        }
+
+		void transport_UnhandledException(C2dmNotification notification, Exception exception)
 		{
-			this.Events.RaiseChannelException(exception);
+			this.Events.RaiseChannelException(exception, PlatformType.AndroidC2dm);
+
+			Interlocked.Decrement(ref waitCounter);
 		}
 
 		void transport_MessageResponseReceived(C2dmMessageTransportResponse response)
 		{
+			//Check if our token was expired and refresh/requeue if need be
+			if (response.ResponseCode == MessageTransportResponseCode.InvalidAuthToken)
+			{
+				this.QueueNotification(response.Message, false);
+				this.RefreshGoogleAuthToken();
+				return;
+			}
+
 			if (response.ResponseStatus == MessageTransportResponseStatus.Ok)
-				this.Events.RaiseNotificationSent(response.Message);
+				this.Events.RaiseNotificationSent(response.Message); //Msg ok!
 			else if (response.ResponseStatus == MessageTransportResponseStatus.InvalidRegistration || response.ResponseStatus == MessageTransportResponseStatus.NotRegistered)
 			{
 				//Device subscription is no good!
-				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidC2dm, response.Message.RegistrationId);
+				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidC2dm, response.Message.RegistrationId, response.Message);
 			}
 			else if (response.ResponseStatus == MessageTransportResponseStatus.NotRegistered)
 			{
 				//Device must have uninstalled app
-				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidC2dm, response.Message.RegistrationId);
+				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidC2dm, response.Message.RegistrationId, response.Message);
 			}
 			else
 			{
-				//TODO: Raise error response
+				//Message Failed some other way
 				this.Events.RaiseNotificationSendFailure(response.Message, new Exception(response.ResponseStatus.ToString()));
 			}
+
+			Interlocked.Decrement(ref waitCounter);
 		}
 
 		protected override void SendNotification(Notification notification)
 		{
-			transport.Send(notification as AndroidNotification, this.googleAuthToken, androidSettings.SenderID, androidSettings.ApplicationID);
+			Interlocked.Increment(ref waitCounter);
+			transport.Send(notification as C2dmNotification, this.googleAuthToken, androidSettings.SenderID, androidSettings.ApplicationID);
 		}
 
+		public override void Stop(bool waitForQueueToDrain)
+		{
+			base.Stop(waitForQueueToDrain);
+
+			var slept = 0;
+			while (Interlocked.Read(ref waitCounter) > 0 && slept <= 30000)
+			{
+				slept += 100;
+				Thread.Sleep(100);
+			}
+		}
 
 		/// <summary>
 		/// Explicitly refreshes the Google Auth Token.  Usually not necessary.

@@ -14,7 +14,11 @@ namespace PushSharp
 				case Common.PlatformType.Apple:
 					return Apple();
 				case Common.PlatformType.AndroidC2dm:
-					return Android();
+          return AndroidC2dm();
+        case Common.PlatformType.AndroidGcm:
+          return AndroidGcm();
+				case Common.PlatformType.Windows:
+					return Windows();
 				case Common.PlatformType.WindowsPhone:
 					return WindowsPhone();
 				case Common.PlatformType.Blackberry:
@@ -30,9 +34,9 @@ namespace PushSharp
 		}
 
 		[Obsolete("Google has Deprecated C2DM, and you should now use GCM Instead.  See the AndroidGcm() factory method!")]
-		public static Android.AndroidNotification Android()
+		public static Android.C2dmNotification AndroidC2dm()
 		{
-			return new Android.AndroidNotification();
+			return new Android.C2dmNotification();
 		}
 
 		public static Android.GcmNotification AndroidGcm()
@@ -48,6 +52,11 @@ namespace PushSharp
 		public static Blackberry.BlackberryNotification Blackberry()
 		{
 			return new Blackberry.BlackberryNotification();
+		}
+
+		public static Windows.WindowsNotificationFactory Windows()
+		{
+			return new Windows.WindowsNotificationFactory();
 		}
 	}
 }

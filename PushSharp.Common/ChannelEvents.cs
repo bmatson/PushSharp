@@ -7,6 +7,26 @@ namespace PushSharp.Common
 {
 	public class ChannelEvents
 	{
+		public delegate void ChannelCreatedDelegate(PlatformType platformType, int newChannelCount);
+		public event ChannelCreatedDelegate OnChannelCreated;
+
+		public void RaiseChannelCreated(PlatformType platformType, int newChannelCount)
+		{
+			var evt = this.OnChannelCreated;
+			if (evt != null)
+				evt(platformType, newChannelCount);
+		}
+
+		public delegate void ChannelDestroyedDelegate(PlatformType platformType, int newChannelCount);
+		public event ChannelDestroyedDelegate OnChannelDestroyed;
+
+		public void RaiseChannelDestroyed(PlatformType platformType, int newChannelCount)
+		{
+			var evt = this.OnChannelDestroyed;
+			if (evt != null)
+				evt(platformType, newChannelCount);
+		}
+
 		public delegate void NotificationSendFailureDelegate(Notification notification, Exception notificationFailureException);
 		public event NotificationSendFailureDelegate OnNotificationSendFailure;
 
@@ -27,62 +47,70 @@ namespace PushSharp.Common
 				evt(notification);
 		}
 
-		public delegate void ChannelExceptionDelegate(Exception exception);
+		public delegate void ChannelExceptionDelegate(Exception exception, PlatformType platformType, Notification notification = null);
 		public event ChannelExceptionDelegate OnChannelException;
 
-		public void RaiseChannelException(Exception exception)
+		public void RaiseChannelException(Exception exception, PlatformType platformType, Notification notification = null)
 		{
 			var evt = this.OnChannelException;
 			if (evt != null)
-				evt(exception);
+				evt(exception, platformType, notification);
 		}
 
 
-		public delegate void DeviceSubscriptionExpired(PlatformType platform, string deviceInfo);
+		public delegate void DeviceSubscriptionExpired(PlatformType platform, string deviceInfo, Notification notification = null);
 		public event DeviceSubscriptionExpired OnDeviceSubscriptionExpired;
 
-		public void RaiseDeviceSubscriptionExpired(PlatformType platform, string deviceInfo)
+		public void RaiseDeviceSubscriptionExpired(PlatformType platform, string deviceInfo, Notification notification = null)
 		{
 			var evt = this.OnDeviceSubscriptionExpired;
 			if (evt != null)
-				evt(platform, deviceInfo);
+				evt(platform, deviceInfo, notification);
 		}
 
-		public delegate void DeviceSubscriptionIdChanged(PlatformType platform, string oldDeviceInfo, string newDeviceInfo);
+		public delegate void DeviceSubscriptionIdChanged(PlatformType platform, string oldDeviceInfo, string newDeviceInfo, Notification notification = null);
 		public event DeviceSubscriptionIdChanged OnDeviceSubscriptionIdChanged;
 
-		public void RaiseDeviceSubscriptionIdChanged(PlatformType platform, string oldDeviceInfo, string newDeviceInfo)
+		public void RaiseDeviceSubscriptionIdChanged(PlatformType platform, string oldDeviceInfo, string newDeviceInfo, Notification notification = null)
 		{
 			var evt = this.OnDeviceSubscriptionIdChanged;
 			if (evt != null)
-				evt(platform, oldDeviceInfo, newDeviceInfo);
+				evt(platform, oldDeviceInfo, newDeviceInfo, notification);
 		}
 
 
 		public void RegisterProxyHandler(ChannelEvents proxy)
 		{
-			this.OnChannelException += new ChannelExceptionDelegate((exception) => proxy.RaiseChannelException(exception));
+			this.OnChannelCreated += new ChannelCreatedDelegate((platformType, newCount) => proxy.RaiseChannelCreated(platformType, newCount));
+			
+			this.OnChannelDestroyed += new ChannelDestroyedDelegate((platformType, newCount) => proxy.RaiseChannelDestroyed(platformType, newCount));
+
+			this.OnChannelException += new ChannelExceptionDelegate((exception, platformType, notification) => proxy.RaiseChannelException(exception, platformType, notification));
 
 			this.OnNotificationSendFailure += new NotificationSendFailureDelegate((notification, exception) => proxy.RaiseNotificationSendFailure(notification, exception));
 
 			this.OnNotificationSent += new NotificationSentDelegate((notification) => proxy.RaiseNotificationSent(notification));
 
-			this.OnDeviceSubscriptionExpired += new DeviceSubscriptionExpired((platform, deviceInfo) => proxy.RaiseDeviceSubscriptionExpired(platform, deviceInfo));
+			this.OnDeviceSubscriptionExpired += new DeviceSubscriptionExpired((platform, deviceInfo, notification) => proxy.RaiseDeviceSubscriptionExpired(platform, deviceInfo, notification));
 
-			this.OnDeviceSubscriptionIdChanged += new DeviceSubscriptionIdChanged((platform, oldDeviceInfo, newDeviceInfo) => proxy.RaiseDeviceSubscriptionIdChanged(platform, oldDeviceInfo, newDeviceInfo));
+			this.OnDeviceSubscriptionIdChanged += new DeviceSubscriptionIdChanged((platform, oldDeviceInfo, newDeviceInfo, notification) => proxy.RaiseDeviceSubscriptionIdChanged(platform, oldDeviceInfo, newDeviceInfo, notification));
 		}
 
 		public void UnRegisterProxyHandler(ChannelEvents proxy)
 		{
-			this.OnChannelException -= new ChannelExceptionDelegate((exception) => proxy.RaiseChannelException(exception));
+			this.OnChannelCreated -= new ChannelCreatedDelegate((platformType, newCount) => proxy.RaiseChannelCreated(platformType, newCount));
+
+			this.OnChannelDestroyed -= new ChannelDestroyedDelegate((platformType, newCount) => proxy.RaiseChannelDestroyed(platformType, newCount));
+
+			this.OnChannelException -= new ChannelExceptionDelegate((exception, platformType, notification) => proxy.RaiseChannelException(exception, platformType, notification));
 
 			this.OnNotificationSendFailure -= new NotificationSendFailureDelegate((notification, exception) => proxy.RaiseNotificationSendFailure(notification, exception));
 
 			this.OnNotificationSent -= new NotificationSentDelegate((notification) => proxy.RaiseNotificationSent(notification));
 
-			this.OnDeviceSubscriptionExpired -= new DeviceSubscriptionExpired((platform, deviceInfo) => proxy.RaiseDeviceSubscriptionExpired(platform, deviceInfo));
+			this.OnDeviceSubscriptionExpired -= new DeviceSubscriptionExpired((platform, deviceInfo, notification) => proxy.RaiseDeviceSubscriptionExpired(platform, deviceInfo, notification));
 
-			this.OnDeviceSubscriptionIdChanged -= new DeviceSubscriptionIdChanged((platform, oldDeviceInfo, newDeviceInfo) => proxy.RaiseDeviceSubscriptionIdChanged(platform, oldDeviceInfo, newDeviceInfo));
+			this.OnDeviceSubscriptionIdChanged -= new DeviceSubscriptionIdChanged((platform, oldDeviceInfo, newDeviceInfo, notification) => proxy.RaiseDeviceSubscriptionIdChanged(platform, oldDeviceInfo, newDeviceInfo, notification));
 		}
 	}
 }

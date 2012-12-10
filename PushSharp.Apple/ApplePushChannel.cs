@@ -41,22 +41,35 @@ namespace PushSharp.Apple
 		{
 			this.appleSettings = channelSettings;
 
-			//Need to load the private key seperately from apple
-			// Fixed by danielgindi@gmail.com :
-			//      The default is UserKeySet, which has caused internal encryption errors,
-			//      Because of lack of permissions on most hosting services.
-			//      So MachineKeySet should be used instead.
-			certificate = new X509Certificate2(this.appleSettings.CertificateData, this.appleSettings.CertificateFilePassword, 
-				X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.Exportable);
+			certificate = this.appleSettings.Certificate;
 
-			certificates = new X509CertificateCollection();
+            certificates = new X509CertificateCollection();
+
+            if (appleSettings.AddLocalAndMachineCertificateStores)
+            {
+                var store = new X509Store(StoreLocation.LocalMachine);
+                certificates.AddRange(store.Certificates);
+
+                store = new X509Store(StoreLocation.CurrentUser);
+                certificates.AddRange(store.Certificates);
+            }
+
 			certificates.Add(certificate);
+
+            if (this.appleSettings.AdditionalCertificates != null)
+                foreach (var addlCert in this.appleSettings.AdditionalCertificates)
+                    certificates.Add(addlCert);
 
 			//Start our cleanup task
 			taskCleanup = new Task(() => Cleanup(), TaskCreationOptions.LongRunning);
 			taskCleanup.ContinueWith((t) => { var ex = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
 			taskCleanup.Start();
 		}
+
+        public override PlatformType PlatformType
+        {
+            get { return Common.PlatformType.Apple; }
+        }
 
 		object sentLock = new object();
 		object streamWriteLock = new object();
@@ -108,7 +121,7 @@ namespace PushSharp.Apple
 						}
 					}
 				}
-				catch (Exception ex)
+				catch (Exception)
 				{ 
 					this.QueueNotification(notification); 
 				} //If this failed, we probably had a networking error, so let's requeue the notification
@@ -301,7 +314,7 @@ namespace PushSharp.Apple
 						cf(ex);
 
 					//Raise a channel exception
-					this.Events.RaiseChannelException(ex);
+					this.Events.RaiseChannelException(ex, PlatformType.Apple);
 				}
 
 				if (!connected)
@@ -368,8 +381,8 @@ namespace PushSharp.Apple
 
 				try
 				{
-					//stream.AuthenticateAsClient(this.appleSettings.Host, this.certificates, System.Security.Authentication.SslProtocols.Ssl3, false);
-					stream.AuthenticateAsClient(this.appleSettings.Host);
+					stream.AuthenticateAsClient(this.appleSettings.Host, this.certificates, System.Security.Authentication.SslProtocols.Ssl3, false);
+					//stream.AuthenticateAsClient(this.appleSettings.Host);
 				}
 				catch (System.Security.Authentication.AuthenticationException ex)
 				{

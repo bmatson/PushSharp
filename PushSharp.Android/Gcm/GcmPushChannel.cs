@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using PushSharp.Common;
 
 namespace PushSharp.Android
@@ -12,6 +13,7 @@ namespace PushSharp.Android
 	{
 		GcmPushChannelSettings gcmSettings = null;
 		GcmMessageTransportAsync transport;
+		long waitCounter = 0;
 
 		public GcmPushChannel(GcmPushChannelSettings channelSettings, PushServiceSettings serviceSettings = null) : base(channelSettings, serviceSettings) 
 		{
@@ -24,6 +26,11 @@ namespace PushSharp.Android
 			transport.UnhandledException += new Action<GcmNotification, Exception>(transport_UnhandledException);
 		}
 
+        public override PlatformType PlatformType
+        {
+            get { return PlatformType.AndroidGcm; }
+        }
+
 		void transport_UnhandledException(GcmNotification notification, Exception exception)
 		{
 			//Raise individual failures for each registration id for the notification
@@ -33,7 +40,9 @@ namespace PushSharp.Android
 					exception);
 			}
 
-			this.Events.RaiseChannelException(exception);		
+			this.Events.RaiseChannelException(exception, PlatformType.AndroidGcm, notification);
+
+			Interlocked.Decrement(ref waitCounter);
 		}
 
 		void transport_MessageResponseReceived(GcmMessageTransportResponse response)
@@ -57,7 +66,7 @@ namespace PushSharp.Android
 					//Swap Registrations Id's
 					var newRegistrationId = r.CanonicalRegistrationId;
 
-					this.Events.RaiseDeviceSubscriptionIdChanged(PlatformType.AndroidGcm, singleResultNotification.RegistrationIds[0], newRegistrationId);
+					this.Events.RaiseDeviceSubscriptionIdChanged(PlatformType.AndroidGcm, singleResultNotification.RegistrationIds[0], newRegistrationId, singleResultNotification);
 
 				}
 				else if (r.ResponseStatus == GcmMessageTransportResponseStatus.Unavailable)
@@ -67,7 +76,7 @@ namespace PushSharp.Android
 				else if (r.ResponseStatus == GcmMessageTransportResponseStatus.NotRegistered)
 				{
 					//Raise failure and device expired
-					this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidGcm, singleResultNotification.RegistrationIds[0]);
+					this.Events.RaiseDeviceSubscriptionExpired(PlatformType.AndroidGcm, singleResultNotification.RegistrationIds[0], singleResultNotification);
 				}
 				else
 				{
@@ -77,11 +86,27 @@ namespace PushSharp.Android
 
 				index++;
 			}
+
+			Interlocked.Decrement(ref waitCounter);
 		}
 
 		protected override void SendNotification(Notification notification)
 		{
+			Interlocked.Increment(ref waitCounter);
+
 			transport.Send(notification as GcmNotification, gcmSettings.SenderAuthToken, gcmSettings.SenderID, gcmSettings.ApplicationIdPackageName);
+		}
+
+		public override void Stop(bool waitForQueueToDrain)
+		{
+			base.Stop(waitForQueueToDrain);
+
+			var slept = 0;
+			while (Interlocked.Read(ref waitCounter) > 0 && slept <= 30000)
+			{
+				slept += 100;
+				Thread.Sleep(100);
+			}
 		}
 	}
 }
