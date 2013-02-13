@@ -14,7 +14,6 @@ namespace PushSharp.Android
 {
 	internal class GcmMessageTransportAsync
 	{
-		public event Action<string> UpdateGoogleClientAuthToken;
 		public event Action<GcmMessageTransportResponse> MessageResponseReceived;
 		public event Action<GcmNotification, Exception> UnhandledException;
 
@@ -143,11 +142,6 @@ namespace PushSharp.Android
 				Message = asyncParam.Message
 			};
 
-			var updateClientAuth = asyncParam.WebResponse.GetResponseHeader("Update-Client-Auth");
-
-			if (!string.IsNullOrEmpty(updateClientAuth) && UpdateGoogleClientAuthToken != null)
-				UpdateGoogleClientAuthToken(updateClientAuth);
-
 			//Get the response body
 			var json = new JObject();
 
@@ -229,55 +223,64 @@ namespace PushSharp.Android
 
 		void processResponseError(GcmAsyncParameters asyncParam)
 		{
-			var result = new GcmMessageTransportResponse();
-			result.ResponseCode = GcmMessageTransportResponseCode.Error;
-
-			if (asyncParam.WebResponse.StatusCode == HttpStatusCode.Unauthorized)
+			try
 			{
-				//401 bad auth token
-				result.ResponseCode = GcmMessageTransportResponseCode.InvalidAuthToken;
-				throw new GcmAuthenticationErrorTransportException(result);
+				var result = new GcmMessageTransportResponse();
+				result.ResponseCode = GcmMessageTransportResponseCode.Error;
+
+				if (asyncParam == null || asyncParam.WebResponse == null)
+					throw new GcmMessageTransportException("Unknown Transport Error", result);
+
+				if (asyncParam.WebResponse.StatusCode == HttpStatusCode.Unauthorized)
+				{
+					//401 bad auth token
+					result.ResponseCode = GcmMessageTransportResponseCode.InvalidAuthToken;
+					throw new GcmAuthenticationErrorTransportException(result);
+				}
+				else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.BadRequest)
+				{
+					result.ResponseCode = GcmMessageTransportResponseCode.BadRequest;
+					throw new GcmBadRequestTransportException(result);
+				}
+				else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.InternalServerError)
+				{
+					result.ResponseCode = GcmMessageTransportResponseCode.InternalServiceError;
+					throw new GcmMessageTransportException("Internal Service Error", result);
+				}
+				else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.ServiceUnavailable)
+				{
+					//First try grabbing the retry-after header and parsing it.
+					TimeSpan retryAfter = new TimeSpan(0, 0, 120);
+
+					var wrRetryAfter = asyncParam.WebResponse.GetResponseHeader("Retry-After");
+
+					if (!string.IsNullOrEmpty(wrRetryAfter))
+					{
+						DateTime wrRetryAfterDate = DateTime.UtcNow;
+
+						if (DateTime.TryParse(wrRetryAfter, out wrRetryAfterDate))
+							retryAfter = wrRetryAfterDate - DateTime.UtcNow;
+						else
+						{
+							int wrRetryAfterSeconds = 120;
+							if (int.TryParse(wrRetryAfter, out wrRetryAfterSeconds))
+								retryAfter = new TimeSpan(0, 0, wrRetryAfterSeconds);
+						}
+					}
+
+					//503 exponential backoff, get retry-after header
+					result.ResponseCode = GcmMessageTransportResponseCode.ServiceUnavailable;
+
+					throw new GcmServiceUnavailableTransportException(retryAfter, result);
+				}
+
+				throw new GcmMessageTransportException("Unknown Transport Error", result);
 			}
-			else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.BadRequest)
+			finally
 			{
-				result.ResponseCode = GcmMessageTransportResponseCode.BadRequest;
-				throw new GcmBadRequestTransportException(result);
+				if (asyncParam != null && asyncParam.WebResponse != null)
+					asyncParam.WebResponse.Close();	
 			}
-            else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.InternalServerError)
-            {
-                result.ResponseCode = GcmMessageTransportResponseCode.InternalServiceError;
-                throw new GcmMessageTransportException("Internal Service Error", result);
-            }
-            else if (asyncParam.WebResponse.StatusCode == HttpStatusCode.ServiceUnavailable)
-            {
-                //First try grabbing the retry-after header and parsing it.
-                TimeSpan retryAfter = new TimeSpan(0, 0, 120);
-
-                var wrRetryAfter = asyncParam.WebResponse.GetResponseHeader("Retry-After");
-
-                if (!string.IsNullOrEmpty(wrRetryAfter))
-                {
-                    DateTime wrRetryAfterDate = DateTime.UtcNow;
-
-                    if (DateTime.TryParse(wrRetryAfter, out wrRetryAfterDate))
-                        retryAfter = wrRetryAfterDate - DateTime.UtcNow;
-                    else
-                    {
-                        int wrRetryAfterSeconds = 120;
-                        if (int.TryParse(wrRetryAfter, out wrRetryAfterSeconds))
-                            retryAfter = new TimeSpan(0, 0, wrRetryAfterSeconds);
-                    }
-                }
-
-                //503 exponential backoff, get retry-after header
-                result.ResponseCode = GcmMessageTransportResponseCode.ServiceUnavailable;
-
-                throw new GcmServiceUnavailableTransportException(retryAfter, result);
-            }
-
-			asyncParam.WebResponse.Close();
-
-			throw new GcmMessageTransportException("Unknown Transport Error", result);
 		}
 
 		class GcmAsyncParameters

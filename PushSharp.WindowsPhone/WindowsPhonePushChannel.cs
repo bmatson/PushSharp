@@ -29,49 +29,58 @@ namespace PushSharp.WindowsPhone
 			var wr = HttpWebRequest.Create(wpNotification.EndPointUrl) as HttpWebRequest;
 			wr.ContentType = "text/xml";
 			wr.Method = "POST";
+			
+			var immediateValue = 3;
+			var mediumValue = 13;
+			var slowValue = 23;
 
-			if (wpNotification.MessageID != null)
-				wr.Headers.Add("X-MessageID", wpNotification.MessageID.ToString());
+			if (wpNotification is WindowsPhoneToastNotification)
+			{
+				immediateValue = 2;
+				mediumValue = 12;
+				slowValue = 22;
+			}
+			else if (wpNotification is WindowsPhoneTileNotification ||
+                wpNotification is WindowsPhoneCycleTile ||
+                wpNotification is WindowsPhoneFlipTile ||
+                wpNotification is WindowsPhoneIconicTile)
+			{
+				immediateValue = 1;
+				mediumValue = 11;
+				slowValue = 21;
+			}
+
+			var val = immediateValue;
 
 			if (wpNotification.NotificationClass.HasValue)
 			{
-				var immediateValue = 3;
-				var mediumValue = 13;
-				var slowValue = 23;
-
-				if (wpNotification is WindowsPhoneToastNotification)
-				{
-					immediateValue = 2;
-					mediumValue = 12;
-					slowValue = 22;
-				}
-				else if (wpNotification is WindowsPhoneTileNotification)
-				{
-					immediateValue = 1;
-					mediumValue = 11;
-					slowValue = 21;
-				}
-
-				var val = immediateValue;
 				if (wpNotification.NotificationClass.Value == BatchingInterval.Medium)
 					val = mediumValue;
 				else if (wpNotification.NotificationClass.Value == BatchingInterval.Slow)
 					val = slowValue;
-
-				wr.Headers.Add("X-NotificationClass", val.ToString());
 			}
-
-
+			
+			wr.Headers.Add("X-NotificationClass", val.ToString());
+			
 			if (wpNotification is WindowsPhoneToastNotification)
 				wr.Headers.Add("X-WindowsPhone-Target", "toast");
-			else if (wpNotification is WindowsPhoneTileNotification)
-				wr.Headers.Add("X-WindowsPhone-Target", "Tile");
+            else if (wpNotification is WindowsPhoneTileNotification ||
+                wpNotification is WindowsPhoneCycleTile ||
+                wpNotification is WindowsPhoneFlipTile ||
+                wpNotification is WindowsPhoneIconicTile)
+				wr.Headers.Add("X-WindowsPhone-Target", "token");
+
+			if (wpNotification.MessageID != null)
+				wr.Headers.Add("X-MessageID", wpNotification.MessageID.ToString());
 
 			var payload = wpNotification.PayloadToString();
 
 			var data = Encoding.Default.GetBytes(payload);
 
 			wr.ContentLength = data.Length;
+
+			if (this.windowsPhoneSettings.WebServiceCertificate != null)
+				wr.ClientCertificates.Add(this.windowsPhoneSettings.WebServiceCertificate);
 
 			using (var rs = wr.GetRequestStream())
 			{
@@ -87,7 +96,7 @@ namespace PushSharp.WindowsPhone
 				//Handle different httpstatuses
 				var status = ParseStatus(wex.Response as HttpWebResponse, wpNotification);
 
-				HandleStatus(status);
+				HandleStatus(status, wpNotification);
 			}
 		}
 
@@ -106,7 +115,7 @@ namespace PushSharp.WindowsPhone
 
 			var status = ParseStatus(resp, wpNotification);
 
-			HandleStatus(status);
+			HandleStatus(status, wpNotification);
 		}
 
 		WindowsPhoneMessageStatus ParseStatus(HttpWebResponse resp, WindowsPhoneNotification notification)
@@ -139,17 +148,24 @@ namespace PushSharp.WindowsPhone
 
 			return result;
 		}
+		
+		void HandleStatus(WindowsPhoneMessageStatus status, WindowsPhoneNotification notification = null)
+		{	
+			if (status.SubscriptionStatus == WPSubscriptionStatus.Expired)
+			{
+				this.Events.RaiseDeviceSubscriptionExpired(PlatformType.WindowsPhone, notification.EndPointUrl, notification);
+				this.Events.RaiseNotificationSendFailure(notification, new WindowsPhoneNotificationSendFailureException(status));
+				return;
+			}
 
-		void HandleStatus(WindowsPhoneMessageStatus status)
-		{
 			if (status.HttpStatus == HttpStatusCode.OK
 				&& status.NotificationStatus == WPNotificationStatus.Received)
 			{
-				Events.RaiseNotificationSent(status.Notification);
+				this.Events.RaiseNotificationSent(status.Notification);
 				return;
 			}
 			
-			Events.RaiseNotificationSendFailure(status.Notification, new WindowsPhoneNotificationSendFailureException(status));
+			this.Events.RaiseNotificationSendFailure(status.Notification, new WindowsPhoneNotificationSendFailureException(status));
 		}
 	}
 }
