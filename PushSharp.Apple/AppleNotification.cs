@@ -9,10 +9,10 @@ using System.ServiceModel.Web;
 
 namespace PushSharp.Apple
 {
-	public class AppleNotification : Common.Notification
+	public class AppleNotification : Core.Notification
 	{
 		static object nextIdentifierLock = new object();
-		static int nextIdentifier = 1;
+		static int nextIdentifier = 0;
 
 		static int GetNextIdentifier()
 		{
@@ -42,8 +42,6 @@ namespace PushSharp.Apple
 
 		public AppleNotification()
 		{
-			this.Platform = Common.PlatformType.Apple;
-
 			DeviceToken = string.Empty;
 			Payload = new AppleNotificationPayload();
 
@@ -80,7 +78,14 @@ namespace PushSharp.Apple
 
 		public override string ToString()
 		{
-			return Payload.ToJson();
+			try
+			{ 
+				if (Payload != null)
+					return Payload.ToJson();
+			}
+			catch { }
+
+			return "{}";
 		}
 
 		public byte[] ToBytes()
@@ -140,8 +145,8 @@ namespace PushSharp.Apple
 			}
 			byte[] payloadSize = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(Convert.ToInt16(payload.Length)));
 
-			int bufferSize = sizeof(Byte) + deviceTokenSize.Length + deviceToken.Length + payloadSize.Length + payload.Length;
-			byte[] buffer = new byte[bufferSize];
+			//int bufferSize = sizeof(Byte) + deviceTokenSize.Length + deviceToken.Length + payloadSize.Length + payload.Length;
+			//byte[] buffer = new byte[bufferSize];
 
 			List<byte[]> notificationParts = new List<byte[]>();
 

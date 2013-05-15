@@ -50,9 +50,12 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.4.5.11\lib\net40\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\PushSharp.Common\AssemblyVersionInfo.cs">
+    <Compile Include="..\PushSharp.Core\AssemblyVersionInfo.cs">
       <Link>AssemblyVersionInfo.cs</Link>
     </Compile>
     <Compile Include="ApplePushChannelSettings.cs" />
@@ -65,15 +68,16 @@
     <Compile Include="AppleFluentNotification.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ApplePushService.cs" />
+    <Compile Include="ApplePushBrokerExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="PushSharp-Signing.snk" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PushSharp.Common\PushSharp.Common.csproj">
+    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
       <Project>{836F225F-6CD9-48DE-910C-70F8A7CF54AA}</Project>
-      <Name>PushSharp.Common</Name>
+      <Name>PushSharp.Core</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

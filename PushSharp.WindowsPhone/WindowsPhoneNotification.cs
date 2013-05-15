@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using System.Xml.Schema;
+using PushSharp.Core;
 
 namespace PushSharp.WindowsPhone
 {
@@ -28,7 +29,7 @@ namespace PushSharp.WindowsPhone
 		Raw
 	}
 
-	public class WindowsPhoneNotificationFactory : Common.Notification
+	public class WindowsPhoneNotificationFactory : Notification
 	{
 		public WindowsPhoneRawNotification Raw()
 		{
@@ -45,27 +46,26 @@ namespace PushSharp.WindowsPhone
 			return new WindowsPhoneToastNotification();
 		}
 
-		public WindowsPhoneCycleTile CycleTile()
+		public WindowsPhoneCycleTileNotification CycleTile()
 		{
-			return new WindowsPhoneCycleTile();
+			return new WindowsPhoneCycleTileNotification();
 		}
 
-		public WindowsPhoneFlipTile FlipTile()
+		public WindowsPhoneFlipTileNotification FlipTile()
 		{
-			return new WindowsPhoneFlipTile();
+			return new WindowsPhoneFlipTileNotification();
 		}
 
-		public WindowsPhoneIconicTile IconicTile()
+		public WindowsPhoneIconicTileNotification IconicTile()
 		{
-			return new WindowsPhoneIconicTile();
+			return new WindowsPhoneIconicTileNotification();
 		}
 	}
 
-	public abstract class WindowsPhoneNotification : Common.Notification
+	public abstract class WindowsPhoneNotification : Notification
 	{
 		protected WindowsPhoneNotification()
 		{
-			this.Platform = Common.PlatformType.WindowsPhone;
 			this.MessageID = Guid.NewGuid();
 		}
 
@@ -96,6 +96,11 @@ namespace PushSharp.WindowsPhone
 
 	public class WindowsPhoneToastNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneToastNotification()
+		{
+			NotificationType = NotificationType.Toast;
+		}
+
 		public string Text1 { get; set; }
 		public string Text2 { get; set; }
 
@@ -111,10 +116,10 @@ namespace PushSharp.WindowsPhone
 			var toast = new XElement(wp + "Toast");
 
 			if (!string.IsNullOrEmpty(Text1))
-				toast.Add(new XElement(wp + "Text1", XmlEncode(Text1)));
+				toast.Add(new XElement(wp + "Text1", Text1));
 
 			if (!string.IsNullOrEmpty(Text2))
-				toast.Add(new XElement(wp + "Text2", XmlEncode(Text2)));
+				toast.Add(new XElement(wp + "Text2", Text2));
 
 
 			if (this.OSVersion > WindowsPhoneDeviceOSVersion.Seven)
@@ -136,6 +141,9 @@ namespace PushSharp.WindowsPhone
 
 					var paramValue = sb.ToString();
 
+					if (!string.IsNullOrEmpty(paramValue) && paramValue.EndsWith("&amp;"))
+						paramValue.Substring(0, paramValue.Length - "&amp;".Length);
+
 					if (!string.IsNullOrEmpty(paramValue))
 						toast.Add(new XElement(wp + "Param", paramValue));
 				}
@@ -148,6 +156,11 @@ namespace PushSharp.WindowsPhone
 
 	public class WindowsPhoneRawNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneRawNotification()
+		{
+			NotificationType = NotificationType.Raw;
+		}
+
 		public string Raw { get; set; }
 
 		public override string PayloadToString()
@@ -158,6 +171,11 @@ namespace PushSharp.WindowsPhone
 
 	public class WindowsPhoneTileNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneTileNotification()
+		{
+			NotificationType = NotificationType.Tile;
+		}
+		
 		public string TileId { get; set; } //Secondary tile id, leave blank for application tile
 
 		public string BackgroundImage { get; set; }
@@ -224,8 +242,13 @@ namespace PushSharp.WindowsPhone
 		}
 	}
 
-	public class WindowsPhoneFlipTile : WindowsPhoneNotification
+	public class WindowsPhoneFlipTileNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneFlipTileNotification()
+		{
+			NotificationType = NotificationType.Tile;
+		}
+
 		public string Title { get; set; }
 		public bool ClearTitle { get; set; }
 
@@ -324,8 +347,13 @@ namespace PushSharp.WindowsPhone
 		}
 	}
 	
-	public class WindowsPhoneIconicTile : WindowsPhoneNotification
+	public class WindowsPhoneIconicTileNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneIconicTileNotification()
+		{
+			NotificationType = NotificationType.Tile;
+		}
+
 		public string Title { get; set; }
 		public bool ClearTitle { get; set; }
 
@@ -409,8 +437,13 @@ namespace PushSharp.WindowsPhone
 		}
 	}
 
-	public class WindowsPhoneCycleTile : WindowsPhoneNotification
+	public class WindowsPhoneCycleTileNotification : WindowsPhoneNotification
 	{
+		public WindowsPhoneCycleTileNotification()
+		{
+			NotificationType = NotificationType.Tile;
+		}
+
 		public string Title { get; set; }
 		public bool ClearTitle { get; set; }
 

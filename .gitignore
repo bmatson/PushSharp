@@ -12,10 +12,13 @@ obj
 *.suo
 *.resharper
 *.svn
+*.sln.DotSettings.user
+
 
 
 # mstest test results
 TestResults
+test-results
 
 #NuGet
 packages/
