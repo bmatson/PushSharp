@@ -76,14 +76,14 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
-      <Project>{836F225F-6CD9-48DE-910C-70F8A7CF54AA}</Project>
-      <Name>PushSharp.Core</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="packages.config" />
     <None Include="PushSharp-Signing.snk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
+      <Project>{02429351-4429-4116-99E1-6F4428869191}</Project>
+      <Name>PushSharp.Core</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
