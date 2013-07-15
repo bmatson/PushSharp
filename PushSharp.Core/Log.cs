@@ -14,6 +14,17 @@ namespace PushSharp.Core
             Logger = null;
         }
 
+        public static void Debug(string format, params object[] objs)
+        {
+            if (((int)Level) >= ((int)LogLevel.Debug))
+            {
+                if (Logger == null)
+                    Console.WriteLine("DEBUG [" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + format, objs);
+                else
+                    Logger.Debug(format, objs);
+            }
+        }
+
 		public static void Info(string format, params object[] objs)
 		{
             if (((int)Level) >= ((int)LogLevel.Info))
@@ -53,6 +64,7 @@ namespace PushSharp.Core
 		None = 0,
 		Warning = 1,
 		Error = 2,
-		Info = 3
+		Info = 3,
+        Debug = 4
 	}
 }
