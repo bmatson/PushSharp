@@ -155,6 +155,8 @@ namespace PushSharp.Apple
 						//If this failed, we probably had a networking error, so let's requeue the notification
 						Interlocked.Decrement(ref trackedNotificationCount);
 
+                        Log.Info("Exception during APNS send: {0}", cex);
+
 						if (callback != null)
 							callback(this, new SendNotificationResult(notification, false, cex));
 					}
@@ -164,6 +166,8 @@ namespace PushSharp.Apple
 
 						//If this failed, we probably had a networking error, so let's requeue the notification
 						Interlocked.Decrement(ref trackedNotificationCount);
+
+                        Log.Info("Exception during APNS send: {0}", ex);
 
 						if (callback != null)
 							callback(this, new SendNotificationResult(notification, true, ex));
