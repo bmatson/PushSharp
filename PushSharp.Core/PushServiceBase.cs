@@ -177,12 +177,12 @@ namespace PushSharp.Core
 			var avgQueueTime = (int)this.AverageQueueWaitTime.TotalMilliseconds;
 			var avgSendTime = (int)this.AverageSendTime.TotalMilliseconds;
 
-			Log.Info("{0} -> Avg Queue Wait Time {1} ms, Avg Send Time {2} ms", this, avgQueueTime, avgSendTime);
+			Log.Debug("{0} -> Avg Queue Wait Time {1} ms, Avg Send Time {2} ms", this, avgQueueTime, avgSendTime);
 					
 			//if (stopping)
 			//	return;
 
-			Log.Info("{0} -> Checking Scale ({1} Channels Currently)", this, channels.Count);
+			Log.Debug("{0} -> Checking Scale ({1} Channels Currently)", this, channels.Count);
 
 			if (ServiceSettings.AutoScaleChannels && !this.cancelTokenSource.IsCancellationRequested)
 			{
