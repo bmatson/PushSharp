@@ -135,20 +135,17 @@ namespace PushSharp.Apple
 							if (!stillConnected)
 								throw new ObjectDisposedException("Connection to APNS is not Writable");
 								
-							lock (sentLock)
+							if (notificationData.Length > 45)
 							{
-								if (notificationData.Length > 45)
-								{
-									networkStream.Write(notificationData, 0, 45);
-									networkStream.Write(notificationData, 45, notificationData.Length - 45);
-								}
-								else
-									networkStream.Write(notificationData, 0, notificationData.Length);
-								
-								networkStream.Flush();
-
-								sentNotifications.Add(new SentNotification(appleNotification) {Callback = callback});
+								networkStream.Write(notificationData, 0, 45);
+								networkStream.Write(notificationData, 45, notificationData.Length - 45);
 							}
+							else
+								networkStream.Write(notificationData, 0, notificationData.Length);
+								
+							networkStream.Flush();
+
+							sentNotifications.Add(new SentNotification(appleNotification) {Callback = callback});
 						}
 					}
 					catch (ConnectionFailureException cex)
@@ -273,44 +270,41 @@ namespace PushSharp.Apple
 
 		void HandleFailedNotification(int identifier, byte status)
 		{
-            lock (sentLock)
+            //Get the index of our failed notification (by identifier)
+            var failedIndex = sentNotifications.FindIndex(n => n.Identifier == identifier);
+
+            if (failedIndex < 0)
+                return;
+
+            //Get the failed notification itself
+            var failedNotification = sentNotifications[failedIndex];
+
+            //Fail and remove the failed index from the list
+            Interlocked.Decrement(ref trackedNotificationCount);
+
+            if (failedNotification.Callback != null)
+                failedNotification.Callback(this, new SendNotificationResult(failedNotification.Notification, false, new NotificationFailureException(status, failedNotification.Notification)));
+
+            sentNotifications.RemoveAt(failedIndex);
+
+            //Don't GetRange if there's 0 items to get, or the call will fail
+            if (sentNotifications.Count - (failedIndex) > 0)
             {
-                //Get the index of our failed notification (by identifier)
-                var failedIndex = sentNotifications.FindIndex(n => n.Identifier == identifier);
+                //All Notifications after the failed one have been shifted back one space now
+                //Grab all the notifications from the list that are after the failed index
+                var toRequeue = sentNotifications.GetRange(failedIndex, sentNotifications.Count - (failedIndex)).ToList();
+                //Remove that same range (those ones failed since they were sent after the one apple told us failed, so
+                // apple will ignore them, and we need to requeue them to be tried again
+                sentNotifications.RemoveRange(failedIndex, sentNotifications.Count - (failedIndex));
 
-                if (failedIndex < 0)
-                    return;
-
-                //Get the failed notification itself
-                var failedNotification = sentNotifications[failedIndex];
-
-                //Fail and remove the failed index from the list
-                Interlocked.Decrement(ref trackedNotificationCount);
-
-                if (failedNotification.Callback != null)
-                    failedNotification.Callback(this, new SendNotificationResult(failedNotification.Notification, false, new NotificationFailureException(status, failedNotification.Notification)));
-
-                sentNotifications.RemoveAt(failedIndex);
-
-                //Don't GetRange if there's 0 items to get, or the call will fail
-                if (sentNotifications.Count - (failedIndex) > 0)
+                //Requeue all the messages that were sent afte the failed one, be sure it doesn't count as a 'requeue' to go towards the maximum # of retries
+                //Also ignore that the channel is stopping
+                foreach (var n in toRequeue)
                 {
-                    //All Notifications after the failed one have been shifted back one space now
-                    //Grab all the notifications from the list that are after the failed index
-                    var toRequeue = sentNotifications.GetRange(failedIndex, sentNotifications.Count - (failedIndex)).ToList();
-                    //Remove that same range (those ones failed since they were sent after the one apple told us failed, so
-                    // apple will ignore them, and we need to requeue them to be tried again
-                    sentNotifications.RemoveRange(failedIndex, sentNotifications.Count - (failedIndex));
+                    Interlocked.Decrement(ref trackedNotificationCount);
 
-                    //Requeue all the messages that were sent afte the failed one, be sure it doesn't count as a 'requeue' to go towards the maximum # of retries
-                    //Also ignore that the channel is stopping
-                    foreach (var n in toRequeue)
-                    {
-                        Interlocked.Decrement(ref trackedNotificationCount);
-
-                        if (failedNotification.Callback != null)
-                            failedNotification.Callback(this, new SendNotificationResult(n.Notification, true, new Exception("Sent after previously failed Notification.")) { CountsAsRequeue = false });
-                    }
+                    if (failedNotification.Callback != null)
+                        failedNotification.Callback(this, new SendNotificationResult(n.Notification, true, new Exception("Sent after previously failed Notification.")) { CountsAsRequeue = false });
                 }
             }
 		}
