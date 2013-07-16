@@ -59,6 +59,7 @@ namespace PushSharp.Core
 		}
 
 		private Timer timerCheckScale;
+        private int scaleSynch;
 		private volatile bool stopping;
 		private List<ChannelWorker> channels = new List<ChannelWorker>();
 		private ConcurrentQueue<INotification> queuedNotifications;
@@ -84,6 +85,7 @@ namespace PushSharp.Core
 
 			this.queuedNotifications = new ConcurrentQueue<INotification>();
 
+            scaleSynch = 0;
 			timerCheckScale = new Timer(CheckScale, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
 			CheckScale();
@@ -174,77 +176,92 @@ namespace PushSharp.Core
 		
 		private void CheckScale(object state = null)
 		{
-			var avgQueueTime = (int)this.AverageQueueWaitTime.TotalMilliseconds;
-			var avgSendTime = (int)this.AverageSendTime.TotalMilliseconds;
+            int synch = -1;
+            try
+            {
+                synch = Interlocked.CompareExchange(ref scaleSynch, 1, 0);
+                if (synch == 0)
+                {
+                    var avgQueueTime = (int)this.AverageQueueWaitTime.TotalMilliseconds;
+                    var avgSendTime = (int)this.AverageSendTime.TotalMilliseconds;
 
-			Log.Debug("{0} -> Avg Queue Wait Time {1} ms, Avg Send Time {2} ms", this, avgQueueTime, avgSendTime);
-					
-			//if (stopping)
-			//	return;
+                    Log.Debug("{0} -> Avg Queue Wait Time {1} ms, Avg Send Time {2} ms", this, avgQueueTime, avgSendTime);
 
-			Log.Debug("{0} -> Checking Scale ({1} Channels Currently)", this, channels.Count);
+                    //if (stopping)
+                    //	return;
 
-			if (ServiceSettings.AutoScaleChannels && !this.cancelTokenSource.IsCancellationRequested)
-			{
-				if (channels.Count <= 0)
-				{
-					Log.Info("{0} -> Creating Channel {1}", this, channels.Count);
-					ScaleChannels(ChannelScaleAction.Create);
-					return;
-				}
+                    Log.Debug("{0} -> Checking Scale ({1} Channels Currently)", this, channels.Count);
 
-				if (avgQueueTime < ServiceSettings.MinAvgTimeToScaleChannels && channels.Count > 1)
-				{
-				    var numChannelsToSpinDown = 1;
+                    if (ServiceSettings.AutoScaleChannels && !this.cancelTokenSource.IsCancellationRequested)
+                    {
+                        if (channels.Count <= 0)
+                        {
+                            Log.Info("{0} -> Creating Channel {1}", this, channels.Count);
+                            ScaleChannels(ChannelScaleAction.Create);
+                            return;
+                        }
 
-				    if (avgQueueTime <= 0)
-				        numChannelsToSpinDown = 5;
+                        if (avgQueueTime < ServiceSettings.MinAvgTimeToScaleChannels && channels.Count > 1)
+                        {
+                            var numChannelsToSpinDown = 1;
 
-				    if (channels.Count - numChannelsToSpinDown <= 0)
-				        numChannelsToSpinDown = 1;
+                            if (avgQueueTime <= 0)
+                                numChannelsToSpinDown = 5;
 
-					Log.Info("{0} -> Destroying Channel", this);
-					ScaleChannels(ChannelScaleAction.Destroy, numChannelsToSpinDown);
-				}
-				else if (channels.Count < this.ServiceSettings.MaxAutoScaleChannels)
-				{
-					var numChannelsToSpinUp = 0;
+                            if (channels.Count - numChannelsToSpinDown <= 0)
+                                numChannelsToSpinDown = 1;
 
-					//Depending on the wait time, let's spin up more than 1 channel at a time
-					if (avgQueueTime > 5000)
-						numChannelsToSpinUp = 3;
-					else if (avgQueueTime > 1000)
-						numChannelsToSpinUp = 2;
-					else if (avgQueueTime > ServiceSettings.MinAvgTimeToScaleChannels)
-						numChannelsToSpinUp = 1;
+                            Log.Info("{0} -> Destroying Channel", this);
+                            ScaleChannels(ChannelScaleAction.Destroy, numChannelsToSpinDown);
+                        }
+                        else if (channels.Count < this.ServiceSettings.MaxAutoScaleChannels)
+                        {
+                            var numChannelsToSpinUp = 0;
 
-					if (numChannelsToSpinUp > 0)
-					{
-                        //Don't spin up more than the max!
-					    if (channels.Count + numChannelsToSpinUp > ServiceSettings.MaxAutoScaleChannels)
-					        numChannelsToSpinUp = ServiceSettings.MaxAutoScaleChannels - channels.Count;
+                            //Depending on the wait time, let's spin up more than 1 channel at a time
+                            if (avgQueueTime > 5000)
+                                numChannelsToSpinUp = 3;
+                            else if (avgQueueTime > 1000)
+                                numChannelsToSpinUp = 2;
+                            else if (avgQueueTime > ServiceSettings.MinAvgTimeToScaleChannels)
+                                numChannelsToSpinUp = 1;
 
-					    if (numChannelsToSpinUp > 0)
-					    {
-					        Log.Info("{0} -> Creating {1} Channel(s)", this, numChannelsToSpinUp);
-					        ScaleChannels(ChannelScaleAction.Create, numChannelsToSpinUp);
-					    }
-					}
-				}
-			}
-			else
-			{
-				while (channels.Count > ServiceSettings.Channels && !this.cancelTokenSource.IsCancellationRequested)
-				{
-					Log.Info("{0} -> Destroying Channel", this);
-					ScaleChannels(ChannelScaleAction.Destroy);
-				}
-				while (channels.Count < ServiceSettings.Channels && !this.cancelTokenSource.IsCancellationRequested)
-				{
-					Log.Info("{0} -> Creating Channel", this);
-					ScaleChannels(ChannelScaleAction.Create);
-				}
-			}
+                            if (numChannelsToSpinUp > 0)
+                            {
+                                //Don't spin up more than the max!
+                                if (channels.Count + numChannelsToSpinUp > ServiceSettings.MaxAutoScaleChannels)
+                                    numChannelsToSpinUp = ServiceSettings.MaxAutoScaleChannels - channels.Count;
+
+                                if (numChannelsToSpinUp > 0)
+                                {
+                                    Log.Info("{0} -> Creating {1} Channel(s)", this, numChannelsToSpinUp);
+                                    ScaleChannels(ChannelScaleAction.Create, numChannelsToSpinUp);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        while (channels.Count > ServiceSettings.Channels && !this.cancelTokenSource.IsCancellationRequested)
+                        {
+                            Log.Info("{0} -> Destroying Channel", this);
+                            ScaleChannels(ChannelScaleAction.Destroy);
+                        }
+                        while (channels.Count < ServiceSettings.Channels && !this.cancelTokenSource.IsCancellationRequested)
+                        {
+                            Log.Info("{0} -> Creating Channel", this);
+                            ScaleChannels(ChannelScaleAction.Create);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                if (synch == 0)
+                {
+                    scaleSynch = 0;
+                }
+            }
 		}
 
         public TimeSpan AverageQueueWaitTime
@@ -261,6 +278,10 @@ namespace PushSharp.Core
                         measurements.RemoveAt(0);
 
                     measurements.RemoveAll(m => m.Timestamp < DateTime.UtcNow.AddSeconds(-30));
+
+                    //if we have < 20 measurements, just return 0, we don't have enough traffic to scale up.
+                    if (measurements.Count < 20)
+                        return TimeSpan.Zero;
                     
 				    var avg = from m in measurements select m.Milliseconds;
 				    try { return TimeSpan.FromMilliseconds(avg.Average()); }
