@@ -40,6 +40,7 @@ namespace PushSharp.Apple
 		ApplePushChannelSettings appleSettings = null;
 		List<SentNotification> sentNotifications = new List<SentNotification>();
 
+        private int cleanupSynch;
 		private Timer timerCleanup;
 		
 		public ApplePushChannel(ApplePushChannelSettings channelSettings)
@@ -67,8 +68,8 @@ namespace PushSharp.Apple
                 foreach (var addlCert in this.appleSettings.AdditionalCertificates)
                     certificates.Add(addlCert);
 
+            cleanupSynch = 0;
 			timerCleanup = new Timer(state => Cleanup(), null, TimeSpan.FromMilliseconds(1000), TimeSpan.FromMilliseconds(1000));
-
 		}
 
 		
@@ -80,8 +81,7 @@ namespace PushSharp.Apple
 		float reconnectBackoffMultiplier = 1.5f;
 		
 		byte[] readBuffer = new byte[6];
-		volatile bool connected = false;
-		volatile bool isInCleanup = false;
+        volatile bool connected = false;
 
 		X509Certificate certificate;
 		X509CertificateCollection certificates;
@@ -315,73 +315,78 @@ namespace PushSharp.Apple
 		
 		void Cleanup()
 		{
-			if (isInCleanup)
-				return;
+			int synch = -1;
+            try
+            {
+                synch = Interlocked.CompareExchange(ref cleanupSynch, 1, 0);
+                if (synch == 0)
+                {
+                    while (true)
+                    {
+                        lock (connectLock)
+                        {
+                            //Connect could technically fail
+                            try { Connect(); }
+                            catch (Exception ex)
+                            {
+                                var evt = this.OnException;
+                                if (evt != null)
+                                    evt(this, ex);
+                            }
+                        }
 
-			isInCleanup = true;
-			
-			while (true)
-			{
-				lock(connectLock)
-				{
-					//Connect could technically fail
-					try { Connect(); }
-					catch (Exception ex) 
-					{
-						var evt = this.OnException;
-						if (evt != null)
-							evt(this, ex);
-					}
-				}
+                        bool wasRemoved = false;
 
-				bool wasRemoved = false;
+                        lock (sentLock)
+                        {
+                            //See if anything is here to process
+                            if (sentNotifications.Count > 0)
+                            {
+                                //Don't expire any notifications while we are in a connecting state, o rat least ensure all notifications have been sent
+                                // in case we may have no connection because no notifications were causing a connection to be initiated
+                                if (connected)
+                                {
+                                    //Get the oldest sent message
+                                    var n = sentNotifications[0];
 
-				lock (sentLock)
-				{
-					//See if anything is here to process
-					if (sentNotifications.Count > 0)
-					{
-						//Don't expire any notifications while we are in a connecting state, o rat least ensure all notifications have been sent
-						// in case we may have no connection because no notifications were causing a connection to be initiated
-						if (connected)
-						{
-							//Get the oldest sent message
-							var n = sentNotifications[0];
+                                    //If it was sent more than 3 seconds ago,
+                                    // we have to assume it was sent successfully!
+                                    if (n.SentAt < DateTime.UtcNow.AddMilliseconds(-1 * appleSettings.MillisecondsToWaitBeforeMessageDeclaredSuccess))
+                                    {
+                                        wasRemoved = true;
 
-							//If it was sent more than 3 seconds ago,
-							// we have to assume it was sent successfully!
-							if (n.SentAt < DateTime.UtcNow.AddMilliseconds(-1 * appleSettings.MillisecondsToWaitBeforeMessageDeclaredSuccess))
-							{
-								wasRemoved = true;
-								
-								Interlocked.Decrement(ref trackedNotificationCount);
+                                        Interlocked.Decrement(ref trackedNotificationCount);
 
-								if (n.Callback != null)
-									n.Callback(this, new SendNotificationResult(n.Notification));
+                                        if (n.Callback != null)
+                                            n.Callback(this, new SendNotificationResult(n.Notification));
 
-								sentNotifications.RemoveAt(0);
-							}
-							else
-								wasRemoved = false;
-						}
-						else
-						{
-							//In fact, if we weren't connected, bump up the sentat timestamp
-							// so that we wait awhile after reconnecting to expire this message
-							try { sentNotifications[0].SentAt = DateTime.UtcNow; }
-							catch { }
-						}
-					}
-				}
+                                        sentNotifications.RemoveAt(0);
+                                    }
+                                    else
+                                        wasRemoved = false;
+                                }
+                                else
+                                {
+                                    //In fact, if we weren't connected, bump up the sentat timestamp
+                                    // so that we wait awhile after reconnecting to expire this message
+                                    try { sentNotifications[0].SentAt = DateTime.UtcNow; }
+                                    catch { }
+                                }
+                            }
+                        }
 
-				//if (this.cancelToken.IsCancellationRequested)
-				//	break;
-				//else
-				if (!wasRemoved)
-					break; // Thread.Sleep(250);
-			}
-
-			isInCleanup = false;
+                        if (!wasRemoved)
+                            break; // Thread.Sleep(250);
+                    }
+                }
+            }
+            finally
+            {
+                if (synch == 0)
+                {
+                    cleanupSynch = 0;
+                }
+            }
 		}
 	
 		void Connect()
