@@ -184,16 +184,6 @@ namespace PushSharp.Apple
 
 			Log.Info("ApplePushChannel->Waiting...");
 
-			timerCleanup.Change(Timeout.Infinite, Timeout.Infinite);
-
-			try
-			{
-				Cleanup();
-			}
-			catch
-			{
-			}
-
 			//See if we want to wait for the queue to drain before stopping
 			var sentNotificationCount = 0;
 			lock (sentLock)
@@ -206,6 +196,8 @@ namespace PushSharp.Apple
 				lock (sentLock)
 					sentNotificationCount = sentNotifications.Count;
 			}
+
+            timerCleanup.Change(Timeout.Infinite, Timeout.Infinite);
 
 			cancelTokenSrc.Cancel();
 
