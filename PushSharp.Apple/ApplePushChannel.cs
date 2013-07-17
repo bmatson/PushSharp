@@ -477,8 +477,8 @@ namespace PushSharp.Apple
 							{
 								client.EndConnect(ar);
 
-								//Set keep alive on the socket may help maintain our APNS connection
-								client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+								//Set keep alive on the socket may help maintain our APNS connection, start sending at 20 minutes of idle, every 30 seconds.
+                                client.SetSocketKeepAliveValues(20 * 60 * 1000, 30 * 1000);
 
 								//Trigger the reset event so we can continue execution below
 								connectDone.Set();
@@ -568,4 +568,32 @@ namespace PushSharp.Apple
 
 		public SendNotificationCallbackDelegate Callback { get; set; }
 	}
+
+    public static class TcpExtensions
+    {
+        /// <summary>
+        /// Using IOControl code to configue socket KeepAliveValues for line disconnection detection(because default is toooo slow) 
+        /// </summary>
+        /// <param name="tcpc">TcpClient</param>
+        /// <param name="KeepAliveTime">The keep alive time. (ms)</param>
+        /// <param name="KeepAliveInterval">The keep alive interval. (ms)</param>
+        public static void SetSocketKeepAliveValues(this TcpClient tcpc, int KeepAliveTime, int KeepAliveInterval)
+        {
+            //KeepAliveTime: default value is 2hr
+            //KeepAliveInterval: default value is 1s and Detect 5 times
+
+            uint dummy = 0; //lenth = 4
+            byte[] inOptionValues = new byte[System.Runtime.InteropServices.Marshal.SizeOf(dummy) * 3]; //size = lenth * 3 = 12
+            bool OnOff = true;
+
+            BitConverter.GetBytes((uint)(OnOff ? 1 : 0)).CopyTo(inOptionValues, 0);
+            BitConverter.GetBytes((uint)KeepAliveTime).CopyTo(inOptionValues, System.Runtime.InteropServices.Marshal.SizeOf(dummy));
+            BitConverter.GetBytes((uint)KeepAliveInterval).CopyTo(inOptionValues, System.Runtime.InteropServices.Marshal.SizeOf(dummy) * 2);
+            // of course there are other ways to marshal up this byte array, this is just one way
+            // call WSAIoctl via IOControl
+
+            // .net 3.5 type
+            tcpc.Client.IOControl(IOControlCode.KeepAliveValues, inOptionValues, null);
+        }
+    }
 }
