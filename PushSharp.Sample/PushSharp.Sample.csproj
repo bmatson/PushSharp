@@ -63,13 +63,13 @@
       <Project>{83C67156-893D-4AFF-9169-DB34771989CB}</Project>
       <Name>PushSharp.Apple</Name>
     </ProjectReference>
-    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
-      <Project>{836F225F-6CD9-48DE-910C-70F8A7CF54AA}</Project>
-      <Name>PushSharp.Core</Name>
-    </ProjectReference>
     <ProjectReference Include="..\PushSharp.Android\PushSharp.Google.csproj">
       <Project>{71E27C37-FBBF-481B-934B-1F7DBDE3C5D6}</Project>
       <Name>PushSharp.Google</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
+      <Project>{02429351-4429-4116-99E1-6F4428869191}</Project>
+      <Name>PushSharp.Core</Name>
     </ProjectReference>
     <ProjectReference Include="..\PushSharp.WindowsPhone\PushSharp.WindowsPhone.csproj">
       <Project>{9947F510-BA9A-4045-A648-BAB687D8F513}</Project>

@@ -60,13 +60,13 @@
     <Compile Include="WindowsPhoneTransportResponse.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
-      <Project>{836F225F-6CD9-48DE-910C-70F8A7CF54AA}</Project>
-      <Name>PushSharp.Core</Name>
-    </ProjectReference>
+    <None Include="PushSharp-Signing.snk" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="PushSharp-Signing.snk" />
+    <ProjectReference Include="..\PushSharp.Core\PushSharp.Core.csproj">
+      <Project>{02429351-4429-4116-99E1-6F4428869191}</Project>
+      <Name>PushSharp.Core</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

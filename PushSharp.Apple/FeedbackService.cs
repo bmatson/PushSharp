@@ -93,7 +93,7 @@ namespace PushSharp.Apple
 					int tSeconds = BitConverter.ToInt32(bSeconds, 0);
 
 					//Add seconds since 1970 to that date, in UTC and then get it locally
-					var timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(tSeconds).ToLocalTime();
+					var timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(tSeconds);
 
 					//flag to allow feedback times in UTC or local, but default is local
 					if (!settings.FeedbackTimeIsUTC)

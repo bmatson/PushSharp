@@ -17,7 +17,7 @@ namespace PushSharp.Android
 	public class C2dmPushChannel : IPushChannel
 	{
 		C2dmPushChannelSettings androidSettings = null;
-		string googleAuthToken = string.Empty;		
+		string googleAuthToken = string.Empty;
 		long waitCounter = 0;
 
 		static C2dmPushChannel()
@@ -33,7 +33,7 @@ namespace PushSharp.Android
 		private const string C2DM_SEND_URL = "https://android.apis.google.com/c2dm/send";
 
 		public void SendNotification(INotification notification, SendNotificationCallbackDelegate callback)
-		{
+			{
 			if (string.IsNullOrEmpty(googleAuthToken))
 				RefreshGoogleAuthToken();
 
@@ -61,12 +61,12 @@ namespace PushSharp.Android
 				SenderId = androidSettings.SenderID,
 				ApplicationId = androidSettings.ApplicationID
 			});
-		}
+			}
 
 		void requestStreamCallback(IAsyncResult result)
-		{
+			{
 			var asyncParam = result.AsyncState as C2dmAsyncParameters;
-			
+
 			try
 			{	
 				if (asyncParam != null)
@@ -78,12 +78,12 @@ namespace PushSharp.Android
 						var data = asyncParam.Message.GetPostData();
 						webReqStream.Write(data);
 						webReqStream.Close();
-					}
+		}
 
 					try
-					{
+        {
 						asyncParam.WebRequest.BeginGetResponse(new AsyncCallback(responseCallback), asyncParam);
-					}
+        }
 					catch (WebException wex)
 					{
 						asyncParam.WebResponse = wex.Response as HttpWebResponse;
@@ -103,7 +103,7 @@ namespace PushSharp.Android
 		void responseCallback(IAsyncResult result)
 		{
 			var asyncParam = result.AsyncState as C2dmAsyncParameters;
-		
+
 			try
 			{
 				try
@@ -122,8 +122,8 @@ namespace PushSharp.Android
 				if (asyncParam.Callback != null)
 					asyncParam.Callback(this, new SendNotificationResult(asyncParam.Message, true, new Exception("Unknown Network Failure")));
 
-				Interlocked.Decrement(ref waitCounter);
-			}
+			Interlocked.Decrement(ref waitCounter);
+		}
 		}
 
 		void processResponseOk(C2dmAsyncParameters asyncParam)
@@ -336,6 +336,6 @@ namespace PushSharp.Android
 			public string SenderId { get; set; }
 
 			public string ApplicationId { get; set; }
-		}
 	}
+}
 }
